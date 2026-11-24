@@ -1,0 +1,13 @@
+# Virtual muhitlar
+.venv/
+avtomatic/
+
+# Python
+__pycache__/
+*.pyc
+
+# Ish vaqtida yaratiladigan ma'lumotlar (kamera rasmlari, baza)
+rasmlar/
+avtomobillar.xlsx
+
+.DS_Store
