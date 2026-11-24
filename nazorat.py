@@ -26,10 +26,10 @@ def qayta_ishlash(raqam, yonalish, kadr, hozir=None):
         return None
 
     avtomobil = database.avtomobil_qidirish(raqam)
-    # if avtomobil is None:
-    #     oxirgi_vaqt[raqam] = hozir
-    #     gate.shlagbaum_yopiq_qoldirish(raqam, "bazada yo'q")
-    #     return f"{raqam}: bazada yo'q"
+    if avtomobil is None:
+        oxirgi_vaqt[raqam] = hozir
+        gate.shlagbaum_yopiq_qoldirish(raqam, "bazada yo'q")
+        return f"{raqam}: bazada yo'q"
     if avtomobil["holati"] != RUXSAT:
         oxirgi_vaqt[raqam] = hozir
         gate.shlagbaum_yopiq_qoldirish(raqam, "taqiqlangan")

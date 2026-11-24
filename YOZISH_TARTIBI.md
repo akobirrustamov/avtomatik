@@ -7,7 +7,7 @@ config → billing → database → gate → camera → recognition → nazorat 
  (1)       (2)        (3)       (4)     (5)        (6)          (7)      (8)
 ```
 
-Tayyor loyiha `avtomatik/` papkasida. Quyida har fayl nima uchun va nima bilan boshlanishi yozilgan.
+Loyiha **1-24 ATT guruhi** talabalari bilan birga, dars paytida yozilgan. Quyida har fayl nima uchun va nima bilan boshlanishi yozilgan. Har qatorning to'liq tushuntirishi — `KOD_TUSHUNTIRISH.md` da.
 
 ---
 
@@ -31,13 +31,18 @@ TARIF_DAQIQAGA = 100
 EXCEL_FILE = "avtomobillar.xlsx"
 RASMLAR_PAPKASI = "rasmlar"
 KAMERALAR = [("avto", 0)]
-HAR_NECHTA_KADR = 15
+KADR_ENI, KADR_BOYI = 1280, 720
+HARAKAT_CHEGARASI = 0.01
+HARAKATDAN_KEYIN_SONIYA = 3
+ANIQLASH_ENI = 960
 MIN_ISHONCH = 0.5
 TAKROR_SONIYA = 60
 VAQT_FORMATI = "%Y-%m-%d %H:%M:%S"
 RUXSAT = "Ruxsat berilgan"
 TAQIQ = "Taqiqlangan"
 ```
+
+Harakat va o'lchamga oid 4 ta sozlama (`KADR_ENI` … `ANIQLASH_ENI`) boshida kerak emas — ular 9-qadamda qo'shiladi.
 
 **Sinov:** `python -c "import config; print(config.TARIF_DAQIQAGA)"` → `100`.
 
@@ -91,10 +96,10 @@ Muhim g'oya: mashina ichkarida yoki yo'qligini **faqat** `ochiq_sessiya` aytadi.
 
 ```python
 def shlagbaum_ochish(yonalish, raqam):
-    print(f"[SHLAGBAUM] OCHILDI ({yonalish}): {raqam}")
+    print(f"   🟢 SHLAGBAUM OCHILDI ({yonalish}): {raqam}")
 
 def shlagbaum_yopiq_qoldirish(raqam, sabab):
-    print(f"[SHLAGBAUM] YOPIQ: {raqam} — {sabab}")
+    print(f"   🔴 Shlagbaum yopiq: {raqam} — {sabab}")
 ```
 
 Keyin haqiqiy qurilma ulansa, faqat shu fayl o'zgaradi.
@@ -109,19 +114,29 @@ Funksiyalar: `kutubxona_bormi`, `kamerani_ochish(indeks)`, `kadr_olish(kamera)`,
 
 **Sinov:** kamera ochilib, oynada tasvir chiqsin, `q` bosilganda yopilsin.
 
+macOS'da birinchi safar kamera ruxsati so'raladi: **System Settings → Privacy & Security → Camera** dan terminalga ruxsat bering. Noutbukning o'z kamerasi odatda `0` raqamli.
+
 ---
 
 ## 6. `recognition.py` — raqamni o'qish
 
-Ikki qism, tartib bilan:
+Uch qism, tartib bilan:
 
 1. **Matn tozalash (OCRsiz sinab ko'riladi):**
    - `raqamni_tozalash(matn)` — bo'sh joy va belgilarni olib tashlaydi, katta harfga o'tkazadi.
    - `togri_formatmi(raqam)` — `01A123AA` yoki `01123ABC` shakliga mos keladimi.
-2. **OCR:**
-   - `raqamni_aniqlash(kadr)` → `(raqam yoki None, ishonch)`.
+2. **Oddiy OCR:**
+   - `raqamni_aniqlash(kadr)` → `(raqam yoki None, ishonch)`. Avval eng sodda ko'rinishi: butun kadrni `readtext` bilan o'qib, formatga mos kelganini qaytarish.
+   - `kadr` — rasmning o'zi (`cv2.imread(...)` natijasi), fayl yo'li emas.
+3. **Aniqlikni oshirish (9-qadamda).**
 
-**Sinov:** avval faqat 1-qism (`"01 a 123 aa"` → `01A123AA`). Keyin rasmdan: menyudagi "rasmdan raqamni sinash".
+**Sinov:** avval faqat 1-qism (`"01 a 123 aa"` → `01A123AA`). Keyin rasmdan: menyudagi "rasmdan raqamni sinash" yoki bitta buyruq bilan:
+
+```
+python -c "import cv2, recognition; print(recognition.raqamni_aniqlash(cv2.imread('rasmlar/raqam.jpg')))"
+```
+
+Fayl oxiriga sinov uchun `raqamni_aniqlash("")` kabi chaqiruv yozib qoldirmang: fayl har `import` qilinganda u ham ishga tushadi va `main.py` ni buzadi.
 
 ---
 
@@ -139,17 +154,19 @@ Ikki qism, tartib bilan:
 
 Avval `hozir` parametri bilan **soxta vaqt** berib sinang. Kamera kerak emas.
 
-Keyin `avtomatik_nazorat()`:
+Keyin `avtomatik_nazorat()` — avval eng sodda ko'rinishi:
 ```
 kameralarni och
 while True:
     kadr ol
-    har 15-kadrda raqamni aniqla
+    raqamni aniqla
     raqam topilsa → qayta_ishlash
     oynada ko'rsat
     q bosilsa → break
 finally: kameralarni yop
 ```
+
+Shu holatda ishlaydi, lekin oyna **qotadi** (har kadrni o'qish 0.5–1 soniya). Buni 9-qadam tuzatadi.
 
 ---
 
@@ -169,6 +186,50 @@ Oxirida: `if __name__ == "__main__": menyu()`
 
 ---
 
+## 9. Yaxshilash: aniqlik va tezlik (darsda qo'shilgan)
+
+Oddiy variant ishlagach, ikkita muammo chiqdi. Har biri alohida, ketma-ket tuzatiladi.
+
+### 9.1. Raqam xato o'qiladi (`recognition.py`)
+
+`70 A 444 AA` rasmini OCR `ZAGGGAA` deb o'qidi: raqam kadrda kichik, `4` esa `G` ga o'xshaydi.
+
+Yozish tartibi:
+
+1. `_kesib_oqish` — topilgan matn joyini asl kadrdan kesib, kattalashtiradi.
+2. `_belgilarni_topish` — kesimni oq-qora qilib, 8 ta belgining joyini topadi.
+3. `_guruhni_oqish` — guruhni faqat raqam yoki faqat harf deb o'qiydi (`70` | `A` | `444` | `AA`).
+4. `_formatni_tanlash` — bo'shliqlarga qarab `01 A 123 AA` yoki `01 123 ABC` ni tanlaydi.
+5. Ovoz berish — uch xil chekka bilan o'qib, eng ko'p mos kelganini oladi.
+6. `_qatorlarga_birlashtirish` — ikki bo'lak bo'lib topilgan raqamni bitta qutiga qo'shadi.
+
+**Sinov:** shu rasm → `('70A444AA', 0.86)`.
+
+### 9.2. Kamera oynasi qotadi (`nazorat.py`, `camera.py`)
+
+1. `recognition.tayyorlash()` — modelni sikldan oldin yuklaydi.
+2. `class Aniqlovchi` — raqamni alohida oqimda (`threading`) o'qiydi; band bo'lsa yangi kadrni tashlab yuboradi.
+3. `camera.harakat_bormi(oldingi, kadr)` — ikki kadrni solishtiradi. Raqam faqat harakat bo'lganda va undan keyin 3 soniya o'qiladi.
+4. `kamerani_ochish` ga kadr o'lchami (`KADR_ENI`, `KADR_BOYI`) va `CAP_PROP_BUFFERSIZE` qo'shiladi.
+5. `raqamni_aniqlash` matn joyini kichraytirilgan kadrdan (`ANIQLASH_ENI`) qidiradi.
+
+Yakuniy sikl:
+```
+kameralarni och, modelni yukla
+while True:
+    kadr ol
+    fonda o'qilgan natija tayyormi? → qayta_ishlash
+    harakat bormi? → 3 soniyaga "faol"
+    faol bo'lsa → kadrni fonga yubor
+    oynada ko'rsat
+    q bosilsa → break
+finally: kameralarni yop
+```
+
+**Sinov:** oyna qotmaydi; kamera oldi tinch bo'lsa «Mashina kutilmoqda», harakat bo'lsa «Raqam o'qilmoqda...» chiqadi.
+
+---
+
 ## Tekshiruv ro'yxati (yakuniy)
 
 - [ ] Yangi mashina kirdi → sessiya ochildi, shlagbaum ochildi
@@ -177,10 +238,14 @@ Oxirida: `if __name__ == "__main__": menyu()`
 - [ ] Taqiqlangan mashina → yopiq
 - [ ] 60 soniya ichida takroriy o'qish e'tiborga olinmadi
 - [ ] Excel ochiq turganda yozish xatosi dasturni yiqitmadi
+- [ ] Raqam o'qilayotganda kamera oynasi qotmadi
+- [ ] Kamera oldi tinch turganda raqam o'qilmadi
+- [ ] Yuridik raqam (`01123ABC`) qabul qilindi
 
 ## Qiyin joylar (ochiq aytiladi)
 
+- Raqam o'qish bitta rasmda (`70 A 444 AA`) va jonli kamerada telefon ekranidagi shu rasm bilan sinalgan. Haqiqiy mashina, tun, qiya burchak sinalmagan.
+- Raqam kadrda juda kichik bo'lsa (bo'yi ~22 pikseldan kam), xato o'qiladi yoki topilmaydi. Kamera yaqin turishi kerak.
 - Bitta kameradagi "avto" rejimda mashina 60 soniyadan ortiq ko'rinib tursa, u chiqish deb o'qilib ketishi mumkin. Aniq ishlash uchun ikki kamera (`kirish`, `chiqish`) ishlating.
 - Dastur qayta ishga tushsa takror himoyasi (`oxirgi_vaqt`) tozalanadi.
-- `cv2` va `easyocr` real kamerada hali sinalmagan.
 - To'lov faqat yoziladi, to'lov tizimi ulanmagan.

@@ -5,7 +5,7 @@ from config import ANIQLASH_ENI
 
 # O'zbekiston raqamlari: 01A123AA (jismoniy) va 01123ABC (yuridik)
 SHABLONLAR = [re.compile(r"^\d{2}[A-Z]\d{3}[A-Z]{2}$"),
-              re.compile(r"^\d{2}\d{3}[A-Z][a-z]{3}$")]
+              re.compile(r"^\d{2}\d{3}[A-Z]{3}$")]
 
 _oqiydigan = None
 
